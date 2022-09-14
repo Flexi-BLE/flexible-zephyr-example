@@ -54,3 +54,10 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# zephyr files
+.west/
+bootloader/
+modules/
+tools/
+zephyr/

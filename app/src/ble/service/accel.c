@@ -1,7 +1,8 @@
 #include "accel.h"
+#include <math.h>
 
 #include <zephyr/logging/log.h>
-#include "../log.h"
+#include "../../log.h"
 LOG_MODULE_DECLARE(BLE_LOG_NAME);
 
 static volatile bool data_notify_enabled = false;
@@ -10,13 +11,16 @@ static bool config_updated = false;
 static uint16_t accel_data_cursor = 0;
 static uint8_t accel_data[MAX_NOTIFY_BUF_SIZE] = { 0 }; 
 
+static uint32_t anchor_ms;
+static uint32_t last_record_ms;
+
 /**
  * @brief configuration byte array for managing sensor
  * @note byte 0: state of sensor (0: disabled, 1: streaming, ...)
- * @note byte 1: desired frequency (Hz) of streaming (1-255Hz, ignored unless state = 1)
+ * @note byte 1-2: desired frequency (Hz) of streaming (ignored unless state = 1)
  * @note byte 2: size of data batch (min: 7, max: 247)
  */
-static uint8_t accel_config[3] = { 1U, 100U, 240U };
+static uint8_t accel_config[4] = { 0U, 0U, 26U, 140U };
 
 static ssize_t read_accel_data(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
 {
@@ -60,6 +64,9 @@ static ssize_t write_config(
 		return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
 	}
 
+    LOG_DBG("new accel config values: %d, %d, %d", value[0], value[1], value[2]);
+    // LOG_DBG("old accel config values: %d, %d, %d", buf[0], buf[1], buf[2]);
+
 	memcpy(value + offset, buf, len);
 	config_updated = 1U;
 
@@ -88,37 +95,37 @@ BT_GATT_SERVICE_DEFINE(accel_svc,
     )
 );
 
-uint8_t get_status() {
+uint8_t accel_state_get() {
     return accel_config[0];
 }
 
-uint8_t get_batch_size() {
-    return accel_config[2];
+uint8_t get_accel_batch_size() {
+    return accel_config[3];
 }
 
-uint8_t get_desired_freq() {
-    LOG_DBG("accel desired hz: %d", accel_config[1]);
-    return accel_config[1];
+uint16_t get_accel_desired_freq() {
+    uint16_t freq = accel_config[2] | (accel_config[1] << 8);
+    return freq;
 }
-
 
 void record_accel(
+    uint32_t ref_ms,
     struct sensor_value accel_x,
     struct sensor_value accel_y,
     struct sensor_value accel_z
 ) {
+    uint32_t now = k_uptime_get_32();
 
-    if ( get_status() != 1 ) {
+    if ( accel_state_get() != 1 ) {
         return;
     }
-    
-    uint8_t batch_size = get_batch_size();
 
-    if ( accel_data_cursor + 7 >= batch_size ) {
+    uint8_t batch_size = get_accel_batch_size();
+
+    if ( accel_data_cursor + 13 >= batch_size ) {
         
         if ( data_notify_enabled ) {
             // buffer full send notification
-            LOG_DBG("sending accel notification");
             int32_t start = k_uptime_get_32();
             bt_gatt_notify(default_conn, &accel_svc.attrs[1], accel_data, batch_size);
             int32_t end = k_uptime_get_32();
@@ -130,27 +137,41 @@ void record_accel(
             accel_data[i] = 0;
         }
     }
-    
-    // LOG_DBG("recording accel data (x: %d.%d, y: %d.%d, z: %d.%d)",
-    //     accel_x.val1, accel_x.val2,
-    //     accel_y.val1, accel_y.val2,
-    //     accel_z.val1, accel_z.val2
-    // );
 
-    accel_data[accel_data_cursor++] = (int8_t)accel_x.val1;
-    accel_data[accel_data_cursor++] = (int8_t)accel_x.val2;
-    accel_data[accel_data_cursor++] = (int8_t)accel_y.val1;
-    accel_data[accel_data_cursor++] = (int8_t)accel_y.val2;
-    accel_data[accel_data_cursor++] = (int8_t)accel_z.val1;
-    accel_data[accel_data_cursor++] = (int8_t)accel_z.val2;
-    // FIXME: placeholder millisecond offset
-    accel_data[accel_data_cursor++] = 100U;
+    uint32_t record_offset;
 
-    // LOG_DBG("recording accel data (x: %d.%d, y: %d.%d, z: %d.%d) cur: %d",
-    //     (int8_t)accel_x.val1, (int8_t)accel_x.val2,
-    //     (int8_t)accel_y.val1, (int8_t)accel_y.val2,
-    //     (int8_t)accel_z.val1, (int8_t)accel_z.val2,
-    //     accel_data_cursor
-    // );
+    if ( accel_data_cursor == 0 ) {
+        anchor_ms = ref_ms;
+        accel_data[accel_data_cursor++] = (anchor_ms) & 0xFF; 
+        accel_data[accel_data_cursor++] = (anchor_ms >> 8) & 0xFF;
+        accel_data[accel_data_cursor++] = (anchor_ms >> 16) & 0xFF;
+        accel_data[accel_data_cursor++] = (anchor_ms >> 24) & 0xFF;
+
+        record_offset = 0;
+    } else {
+        record_offset = now - last_record_ms;
+    }
+
+    last_record_ms = now;
+
+    int32_t x32 = (accel_x.val1 * 1000000) + accel_x.val2;
+    int32_t y32 = (accel_y.val1 * 1000000) + accel_y.val2;
+    int32_t z32 = (accel_z.val1 * 1000000) + accel_z.val2;
+
+    accel_data[accel_data_cursor++] = (x32 >> 24) & 0xFF;
+    accel_data[accel_data_cursor++] = (x32 >> 16) & 0xFF;
+    accel_data[accel_data_cursor++] = (x32 >> 8) & 0xFF;
+    accel_data[accel_data_cursor++] = (x32) & 0xFF; 
+
+    accel_data[accel_data_cursor++] = (y32 >> 24) & 0xFF;
+    accel_data[accel_data_cursor++] = (y32 >> 16) & 0xFF;
+    accel_data[accel_data_cursor++] = (y32 >> 8) & 0xFF;
+    accel_data[accel_data_cursor++] = (y32) & 0xFF; 
+
+    accel_data[accel_data_cursor++] = (z32 >> 24) & 0xFF;
+    accel_data[accel_data_cursor++] = (z32 >> 16) & 0xFF;
+    accel_data[accel_data_cursor++] = (z32 >> 8) & 0xFF;
+    accel_data[accel_data_cursor++] = (z32) & 0xFF; 
     
+    accel_data[accel_data_cursor++] = (record_offset) & 0xFF;
 };

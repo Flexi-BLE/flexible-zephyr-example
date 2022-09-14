@@ -11,14 +11,14 @@ extern "C" {
 #define INFO_DATA_LEN 240
 
 static struct bt_uuid_128 info_svc_uuid = BT_UUID_INIT_128(EH_INFO_SVC_UUID_VAL);
-static struct bt_uuid_128 info_chr_uuid = BT_UUID_INIT_128(EH_INFO_LOG_CHR_UUID_VAL);
+static struct bt_uuid_128 info_epoch_chr_uuid = BT_UUID_INIT_128(EH_INFO_EPOCH_CHR_UUID_VAL);
 
 /**
- * @brief test gatt characteristic notification
+ * @brief get the reference time since the last epoch time sync with the central
+ * @note will return 0 if sync has not occured
  * 
- * @param n a number
  */
-void notify_test(uint8_t n);
+uint32_t ble_reference_time_ms();
 
 #ifdef __cplusplus
 }

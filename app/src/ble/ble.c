@@ -1,7 +1,7 @@
 #include "ble.h"
 
 #include <zephyr/logging/log.h>
-#include "log.h"
+#include "../log.h"
 LOG_MODULE_DECLARE(BLE_LOG_NAME);
 
 /**
@@ -53,18 +53,18 @@ void bt_configuration_set(
 		}
 	}
 
-	if (info.le.interval != conn_param->interval_max) {
-		err = bt_conn_le_param_update(default_conn, conn_param);
-		if (err) {
-			LOG_ERR("Connection parameters update failed: %d", err);
-		} else {
-			LOG_INF("Connection parameters update pending");
-			err = k_sem_take(&ble_conn_config_sem_internal, BLE_CONFIG_TIMEOUT);
-			if (err) {
-				LOG_ERR("Connection parameters update timeout");
-			}
-		}
-	}
+	// if (info.le.interval != conn_param->interval_max) {
+	// 	err = bt_conn_le_param_update(default_conn, conn_param);
+	// 	if (err) {
+	// 		LOG_ERR("Connection parameters update failed: %d", err);
+	// 	} else {
+	// 		LOG_INF("Connection parameters update pending");
+	// 		err = k_sem_take(&ble_conn_config_sem_internal, BLE_CONFIG_TIMEOUT);
+	// 		if (err) {
+	// 			LOG_ERR("Connection parameters update timeout");
+	// 		}
+	// 	}
+	// }
 
 	ble_connection_ready = true;
 	k_sem_give(&ble_conn_config_sem);
@@ -325,4 +325,20 @@ void ble_req_config()
 		BT_LE_DATA_LEN_PARAM_MAX
 	);
 	k_sem_take(&ble_conn_config_sem, BLE_CONFIG_TIMEOUT);
+}
+
+enum BLE_STATE get_ble_state()
+{
+	if (ble_connected && ble_connection_ready)
+	{
+		return BLE_STATE_CONNECTED_READY;
+	}
+	else if (ble_connected && !ble_connection_ready)
+	{
+		return BLE_STATE_CONNECTED_NOT_READY;
+	}
+	else
+	{
+		return BLE_STATE_DISCONNECTED;
+	}
 }

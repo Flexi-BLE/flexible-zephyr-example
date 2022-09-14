@@ -60,7 +60,6 @@ static const struct bt_data sd[] = {
  * @param data_len 
  */
 ssize_t generic_ble_read(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
-
 #ifdef __cplusplus
 }
 #endif

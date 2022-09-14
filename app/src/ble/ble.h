@@ -19,6 +19,13 @@ static K_SEM_DEFINE(ble_conn_config_sem, 0, 1);
 static bool ble_connected = false;
 static bool ble_connection_ready = false;
 
+enum BLE_STATE
+{
+    BLE_STATE_DISCONNECTED,
+    BLE_STATE_CONNECTED_NOT_READY,
+    BLE_STATE_CONNECTED_READY,
+};
+
 /**
  * @brief Initialize BLE
  * @note must be called before advertisement start `ble_ad_start();`
@@ -40,6 +47,11 @@ void ble_ad_stop();
  * @brief Set BLE connection configuration
  */
 void ble_req_config();
+
+/**
+ * @brief Get BLE connection state
+ */
+enum BLE_STATE get_ble_state();
 
 #ifdef __cplusplus
 }

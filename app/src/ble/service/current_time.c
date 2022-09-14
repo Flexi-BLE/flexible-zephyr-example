@@ -3,7 +3,7 @@
 #include "current_time.h"
 
 #include <zephyr/logging/log.h>
-#include "../log.h"
+#include "../../log.h"
 LOG_MODULE_DECLARE(BLE_LOG_NAME);
 
 static uint8_t ct[10];
