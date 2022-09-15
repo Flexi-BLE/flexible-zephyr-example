@@ -61,3 +61,4 @@ bootloader/
 modules/
 tools/
 zephyr/
+build/

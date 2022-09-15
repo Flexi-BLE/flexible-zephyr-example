@@ -20,11 +20,7 @@
 #include "ble/service/info.h"
 #include <zephyr/bluetooth/services/bas.h>
 #include "ble/service/accel.h"
-#include "ble/service/ppg.h"
-#include "ble/service/ecg_service.h"
-
-#include "ppg/ppg.hpp"
-#include "ppg/led_mapping.h"
+#include "ble/service/random.h"
 
 #include "log.h"
 LOG_MODULE_REGISTER(MAIN_LOG_NAME, MAIN_LOG_LEVEL);
@@ -79,17 +75,6 @@ void accel_entry_point(void*, void*, void*)
 	LOG_INF("Accelerometer thread started");
 
     // Initialize IMU
-	int ret;
-    const struct device *imu = get_ism330_device();
-	sensor_value accel_freq = {.val1=get_accel_desired_freq(), .val2=0};
-	k_mutex_lock(&i2c_mutex, K_FOREVER);
-    ret = sensor_attr_set(imu, SENSOR_CHAN_ACCEL_XYZ, SENSOR_ATTR_SAMPLING_FREQUENCY, &accel_freq);
-	if (ret != 0)
-	{
-		LOG_ERR("%d: failed to configure accelerometer", ret);
-	}
-	k_mutex_unlock(&i2c_mutex);
-
 	bool last_accel_state = accel_state_get();
 	uint16_t last_accel_freq = get_accel_desired_freq();
 	uint32_t accel_freq_us = 1000000 / last_accel_freq;

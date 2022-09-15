@@ -13,4 +13,5 @@ target_sources(app PRIVATE
     src/ble/service/info.c
     src/ble/service/current_time.c
     src/ble/service/accel.c
+    src/ble/service/random.c
 )
